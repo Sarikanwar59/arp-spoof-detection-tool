@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arp-spoof-detection-tool"
+version = "0.1.0"
+description = "Active ARP spoofing detection tool for LAN environments"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "scapy>=2.5.0",
+]
+keywords = ["arp", "security", "network", "spoofing", "lan"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Security",
+  "Topic :: System :: Networking",
+]
+license = {text = "MIT"}
+authors = [
+  {name = "Copilot"},
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+arp-spoof-detection-tool = "arp_spoof_detection_tool.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
