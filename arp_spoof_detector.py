@@ -35,7 +35,7 @@ try:
         conf,
         get_if_hwaddr,
         srp,
-        sr1,
+        srp1,
     )
 except ImportError:
     sys.exit(
@@ -147,7 +147,7 @@ def tcp_syn_probe(
             / IP(dst=target_ip)
             / TCP(dport=port, flags="S", seq=12345)
         )
-        reply = sr1(pkt, iface=interface, timeout=timeout, verbose=False)
+        reply = srp1(pkt, iface=interface, timeout=timeout, verbose=False)
         if reply is not None and TCP in reply:
             tcp_flags = reply[TCP].flags
             # Accept SYN-ACK (0x12) or RST (0x04) – both prove connectivity
