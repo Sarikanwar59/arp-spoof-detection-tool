@@ -1,0 +1,509 @@
+﻿"use strict";
+
+const $ = (selector) => document.querySelector(selector);
+
+const scanButton = $("#scanButton");
+const apiStatus = $("#apiStatus");
+const scanStatus = $("#scanStatus");
+const scanMessage = $("#scanMessage");
+
+let lastReport = null;
+
+function setMessage(message, type = "") {
+    scanMessage.textContent = message;
+    scanMessage.className = `message ${type}`;
+}
+
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[char]);
+}
+
+async function loadScanHistory() {
+    const container = document.querySelector("#scanHistory");
+
+    if (!container) {
+        console.warn("Scan history container not found.");
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/history");
+
+        if (!response.ok) {
+            throw new Error("Unable to load scan history.");
+        }
+
+        const records = await response.json();
+
+        if (!records.length) {
+            container.textContent = "No previous scans available.";
+            return;
+        }
+
+        container.replaceChildren();
+
+        records.forEach(record => {
+            const item = document.createElement("div");
+            item.className = "history-item";
+
+            const status = record.suspicious
+                ? "THREAT DETECTED"
+                : "NO THREAT";
+
+            item.textContent =
+                `${record.target} | ${status} | ` +
+                `${record.timestamp || "Unknown date"}`;
+
+            container.appendChild(item);
+        });
+
+    } catch (error) {
+        console.error("Scan history error:", error);
+        container.textContent = "Unable to load scan history.";
+    }
+}
+
+async function checkAPI() {
+    try {
+        const response = await fetch("/health");
+        if (!response.ok) throw new Error("API unavailable");
+
+        apiStatus.textContent = "Connected";
+        $(".connection-indicator .status-dot").style.background = "var(--green)";
+    } catch {
+        apiStatus.textContent = "Disconnected";
+        $(".connection-indicator .status-dot").style.background = "var(--red)";
+    }
+}
+
+function renderStats(data) {
+    const observations = data.observations || [];
+    const findings = data.findings || [];
+
+    const threats = findings.filter(
+        item => ["critical", "warning"].includes(item.severity)
+    );
+
+    const devices = new Set(observations.map(item => item.ip));
+
+    $("#networkStatus").textContent = data.suspicious
+        ? "THREAT DETECTED"
+        : "NO THREAT";
+
+    $("#networkStatus").className = data.suspicious
+        ? "stat-value red"
+        : "stat-value green-text";
+
+    $("#findingCount").textContent = threats.length;
+    $("#observationCount").textContent = observations.length;
+    $("#deviceCount").textContent = devices.size;
+
+    $("#gatewayIP").textContent = data.target || "Unknown";
+    $("#targetIP").textContent = data.target || "â€”";
+
+    const targetObservation = observations.find(
+        item => item.ip === data.target
+    );
+
+    $("#targetMAC").textContent = targetObservation
+        ? targetObservation.mac
+        : "Not observed";
+
+    $("#lastScan").textContent = new Date().toLocaleString();
+}
+
+function renderMethods(data) {
+    const observations = data.observations || [];
+    const warnings = (data.findings || [])
+        .filter(item => item.title === "Probe step unavailable")
+        .map(item => item.details);
+
+    const methods = [
+        ["ARP Cache", "arp-cache"],
+        ["Active ARP Probe", "arp"],
+        ["TCP SYN Probe", "tcp-syn"]
+    ];
+
+    $("#methodStatus").replaceChildren();
+
+    for (const [label, source] of methods) {
+        const available = observations.some(item => item.source === source);
+        const warning = warnings.some(item =>
+            item.toLowerCase().includes(label.toLowerCase().replace("active ", ""))
+        );
+
+        const row = document.createElement("div");
+        row.className = "method-row";
+
+        const name = document.createElement("span");
+        name.textContent = label;
+
+        const state = document.createElement("span");
+        state.className = `method-state ${available ? "ok" : "warn"}`;
+        state.textContent = available
+            ? "âœ“ Responses received"
+            : warning ? "âš  Unavailable" : "No responses";
+
+        row.append(name, state);
+        $("#methodStatus").appendChild(row);
+    }
+}
+
+function renderObservations(items) {
+    const body = $("#observationsBody");
+    body.replaceChildren();
+
+    $("#tableCount").textContent = `${items.length} records`;
+
+    if (!items.length) {
+        const row = document.createElement("tr");
+        row.innerHTML = '<td colspan="4" class="empty-state">No observations collected.</td>';
+        body.appendChild(row);
+        return;
+    }
+
+    for (const item of items) {
+        const row = document.createElement("tr");
+
+        for (const value of [
+            item.ip,
+            item.mac,
+            item.source,
+            item.port ?? "â€”"
+        ]) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+        }
+
+        const sourceCell = row.children[2];
+        sourceCell.textContent = "";
+        const tag = document.createElement("span");
+        tag.className = "source-tag";
+        tag.textContent = item.source;
+        sourceCell.appendChild(tag);
+
+        body.appendChild(row);
+    }
+}
+
+function renderFindings(items) {
+    const container = $("#findingsList");
+    container.replaceChildren();
+
+    $("#findingsCount").textContent = `${items.length} findings`;
+
+    if (!items.length) {
+        container.textContent = "No findings reported.";
+        container.className = "findings-list empty-state";
+        return;
+    }
+
+    container.className = "findings-list";
+
+    for (const item of items) {
+        const card = document.createElement("article");
+        card.className = `finding-item ${item.severity}`;
+
+        const title = document.createElement("div");
+        title.className = "finding-title";
+        title.textContent = item.title;
+
+        const details = document.createElement("div");
+        details.className = "finding-details";
+        details.textContent = item.details;
+
+        const meta = document.createElement("div");
+        meta.className = "finding-meta";
+        meta.textContent =
+            `Severity: ${item.severity.toUpperCase()} | IP: ${item.ip || "â€”"}`;
+
+        card.append(title, details, meta);
+        container.appendChild(card);
+    }
+}
+
+
+function renderTopology(data) {
+    const canvas = document.querySelector("#topologyCanvas");
+    const details = document.querySelector("#topologyDetails");
+    const observations = data.observations || [];
+
+    if (!canvas || !details) {
+        console.error("Topology elements are missing.");
+        return;
+    }
+
+    const devices = new Map();
+
+    function isUnicastMac(mac) {
+        if (!/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(mac || "")) {
+            return false;
+        }
+
+        const firstOctet = parseInt(mac.slice(0, 2), 16);
+        return (firstOctet & 1) === 0;
+    }
+
+    for (const item of observations) {
+        if (!isUnicastMac(item.mac)) continue;
+
+        if (item.ip === "255.255.255.255" ||
+            item.ip.startsWith("224.") ||
+            item.ip.startsWith("225.") ||
+            item.ip.startsWith("226.") ||
+            item.ip.startsWith("227.") ||
+            item.ip.startsWith("228.") ||
+            item.ip.startsWith("229.") ||
+            item.ip.startsWith("230.") ||
+            item.ip.startsWith("231.") ||
+            item.ip.startsWith("232.") ||
+            item.ip.startsWith("233.") ||
+            item.ip.startsWith("234.") ||
+            item.ip.startsWith("235.") ||
+            item.ip.startsWith("236.") ||
+            item.ip.startsWith("237.") ||
+            item.ip.startsWith("238.") ||
+            item.ip.startsWith("239.")) {
+            continue;
+        }
+
+     
+if (!devices.has(item.ip)) {
+    devices.set(item.ip, {
+        ip: item.ip,
+        mac: item.mac,
+        macs: new Set(),
+        sources: new Set()
+    });
+}
+
+        const device = devices.get(item.ip);
+        device.macs.add(item.mac);
+        device.sources.add(item.source);
+
+        if (item.ip === data.target) {
+            device.mac = item.mac;
+        }
+    }
+
+    if (data.target && !devices.has(data.target)) {
+        devices.set(data.target, {
+            ip: data.target,
+            mac: "Not observed",
+            sources: new Set()
+        });
+    }
+
+   const suspiciousIPs = new Set(
+    (data.findings || [])
+        .filter(item =>
+            ["warning", "critical"].includes(item.severity) &&
+            item.ip
+        )
+        .map(item => item.ip)
+);
+
+const nodes = Array.from(devices.values());
+ const topologyCount = document.querySelector("#topologyCount");
+if (topologyCount) {
+    topologyCount.textContent =
+        `${nodes.length} devices | ${suspiciousIPs.size} suspicious`;
+}
+    if (!nodes.length) {
+        canvas.textContent = "No unicast network devices discovered.";
+        return;
+    }
+
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+
+    svg.setAttribute("viewBox", "0 0 900 430");
+    svg.setAttribute("class", "topology-svg");
+    svg.setAttribute("role", "img");
+    svg.setAttribute(
+        "aria-label",
+        "Network topology showing the target and discovered devices"
+    );
+
+    const centerX = 450;
+    const centerY = 195;
+    const radius = Math.min(145, 45 + nodes.length * 17);
+
+    const positions = nodes.map((node, index) => {
+        if (node.ip === data.target) {
+            return { x: centerX, y: centerY };
+        }
+
+        const angle = (2 * Math.PI * index / Math.max(nodes.length, 1))
+            - Math.PI / 2;
+
+        return {
+            x: centerX + radius * Math.cos(angle),
+            y: centerY + radius * Math.sin(angle)
+        };
+    });
+
+    function addSvg(tag, attributes, parent = svg) {
+        const element = document.createElementNS(NS, tag);
+
+        for (const [key, value] of Object.entries(attributes)) {
+            element.setAttribute(key, value);
+        }
+
+        parent.appendChild(element);
+        return element;
+    }
+
+    nodes.forEach((node, index) => {
+        if (node.ip === data.target) return;
+
+        addSvg("line", {
+            x1: centerX,
+            y1: centerY,
+            x2: positions[index].x,
+            y2: positions[index].y,
+            class: "topology-link"
+        });
+    });
+
+    nodes.forEach((node, index) => {
+        const pos = positions[index];
+        const gateway = node.ip === data.target;
+
+        
+        const group = addSvg("g", {
+            class: `topology-node ${
+                suspiciousIPs.has(node.ip) ? "threat" :
+                gateway ? "gateway" : "device"
+            }`,
+            tabindex: "0",
+            role: "button",
+            "aria-label": `Device ${node.ip}, MAC ${node.mac}`
+        });
+
+        addSvg("circle", {
+            cx: pos.x,
+            cy: pos.y,
+            r: gateway ? 31 : 23
+        }, group);
+
+        const ip = addSvg("text", {
+            x: pos.x,
+            y: pos.y + 48,
+            class: "node-ip"
+        }, group);
+
+        ip.textContent = node.ip;
+
+        const label = addSvg("text", {
+            x: pos.x,
+            y: pos.y + 64,
+            class: "node-label"
+        }, group);
+
+        label.textContent = gateway ? "GATEWAY" : "DEVICE";
+
+                      const selectNode = () => {
+            const macAddresses = node.macs && node.macs.size > 0
+                ? Array.from(node.macs).join(", ")
+                : (node.mac || "Not observed");
+
+            const sources = node.sources && node.sources.size > 0
+                ? Array.from(node.sources).join(", ")
+                : "Target";
+
+            details.textContent =
+                `IP Address: ${node.ip} | MAC Address: ${macAddresses} | Sources: ${sources}`;
+
+            for (const other of svg.querySelectorAll(".topology-node circle")) {
+                other.setAttribute("stroke-width", "3");
+            }
+
+            group.querySelector("circle").setAttribute("stroke-width", "6");
+        };
+
+        group.addEventListener("click", selectNode);
+
+        group.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                selectNode();
+            }
+        });
+    });
+
+    canvas.appendChild(svg);
+    details.textContent =
+        "Select a node to view its IP address, MAC address and probe sources.";
+}
+
+async function runScan() {
+    scanButton.disabled = true;
+    scanButton.textContent = "Scanning...";
+    scanStatus.textContent = "SCANNING";
+    setMessage("Collecting network observations...");
+
+    try {
+        const payload = {
+            target: $("#targetInput").value.trim() || null,
+            ports: [80, 443],
+            timeout: Number($("#timeoutInput").value),
+            include_arp_cache: $("#arpCacheInput").checked,
+            include_tcp_syn: $("#tcpInput").checked
+        };
+
+        const response = await fetch("/api/scans", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || "Scan failed.");
+        }
+
+        lastReport = data;
+
+        renderStats(data);
+        renderMethods(data);
+        renderObservations(data.observations || []);
+        renderTopology(data);
+        renderFindings(data.findings || []);
+        await loadScanHistory();
+
+        scanStatus.textContent = "COMPLETE";
+        setMessage("Network scan completed successfully.", "success");
+
+        $("#networkStatus").scrollIntoView({
+            behavior: "smooth",
+            block: "nearest"
+        });
+
+    } catch (error) {
+        scanStatus.textContent = "ERROR";
+        setMessage(error.message, "error");
+    } finally {
+        scanButton.disabled = false;
+        scanButton.innerHTML = "â–¶ Start Scan";
+    }
+}
+
+
+scanButton.addEventListener("click", runScan);
+
+document.querySelector("#refreshHistory")
+    .addEventListener("click", loadScanHistory);
+
+checkAPI();
+setInterval(checkAPI, 15000);
+
+loadScanHistory();

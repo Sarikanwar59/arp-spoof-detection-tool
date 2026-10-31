@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ARP Shield</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">NETWORK SECURITY CONSOLE</p>
+        <h1>ARP Shield</h1>
+        <p class="subtitle">Detect inconsistent MAC address responses across your LAN.</p>
+      </header>
+
+      <section class="card">
+        <form id="scan-form">
+          <div class="form-grid">
+            <label>
+              Target IP
+              <input id="target" name="target" placeholder="192.168.1.1">
+              <small>Leave blank to use the default gateway.</small>
+            </label>
+            <label>
+              TCP ports
+              <input id="ports" name="ports" value="80, 443" inputmode="numeric">
+              <small>Comma-separated ports.</small>
+            </label>
+            <label>
+              Timeout
+              <input id="timeout" name="timeout" type="number" min="1" max="30" value="2">
+              <small>Seconds per probe.</small>
+            </label>
+          </div>
+          <div class="options">
+            <label><input id="arp-cache" type="checkbox" checked> Read ARP cache</label>
+            <label><input id="tcp-syn" type="checkbox" checked> Send TCP SYN probes</label>
+          </div>
+          <button id="scan-button" type="submit">Run detection scan</button>
+        </form>
+        <p id="status" class="status" role="status"></p>
+      </section>
+
+      <section id="results" class="results hidden">
+        <div class="summary card">
+          <div>
+            <p class="eyebrow">LATEST SCAN</p>
+            <h2 id="scan-target"></h2>
+          </div>
+          <span id="scan-state" class="badge"></span>
+        </div>
+        <div class="columns">
+          <section class="card">
+            <h2>Findings</h2>
+            <div id="findings"></div>
+          </section>
+          <section class="card">
+            <h2>Observations</h2>
+            <div id="observations"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

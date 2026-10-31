@@ -1,0 +1,211 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b1120">
+    <title>ARP Sentinel | Network Security</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">⌁</div>
+            <div>
+                <h2>ARP SENTINEL</h2>
+                <small>NETWORK SECURITY</small>
+            </div>
+        </div>
+
+        <div class="nav-label">MONITORING</div>
+        <a class="nav-item active" href="#overview">◈ <span>Overview</span></a>
+        <a class="nav-item" href="#devices">▦ <span>Network Devices</span></a>
+        <a class="nav-item" href="#findings">⚑ <span>Security Findings</span></a>
+
+        <div class="sidebar-bottom">
+            <div class="connection-indicator">
+                <span class="status-dot"></span>
+                <div>
+                    <strong>API Connection</strong>
+                    <small id="apiStatus">Checking...</small>
+                </div>
+            </div>
+            <small class="version">ARP Sentinel v1.0</small>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow">SECURITY OPERATIONS CENTER</div>
+                <h1>Network Overview</h1>
+                <p>Monitor your local network for ARP spoofing indicators.</p>
+            </div>
+            <div class="topbar-right">
+                <span class="online-label"><span class="status-dot"></span> SYSTEM READY</span>
+                <button id="scanButton" class="primary-button">▶ Start Scan</button>
+            </div>
+        </header>
+
+        <section class="scan-panel" id="overview">
+            <div class="section-heading">
+                <div>
+                    <h2>Scan Configuration</h2>
+                    <p>Configure your network detection scan.</p>
+                </div>
+                <span id="scanStatus" class="status-badge">IDLE</span>
+            </div>
+
+            <div class="scan-controls">
+                <label class="field">
+                    <span>Target IP Address</span>
+                    <input id="targetInput" type="text" placeholder="Leave empty for default gateway">
+                </label>
+                <label class="field">
+                    <span>Probe Timeout (seconds)</span>
+                    <select id="timeoutInput">
+                        <option value="2">2 seconds</option>
+                        <option value="3" selected>3 seconds</option>
+                        <option value="5">5 seconds</option>
+                        <option value="10">10 seconds</option>
+                    </select>
+                </label>
+                <div class="check-options">
+                    <label><input id="arpCacheInput" type="checkbox" checked> ARP Cache</label>
+                    <label><input id="tcpInput" type="checkbox" checked> TCP SYN</label>
+                </div>
+            </div>
+            <div id="scanMessage" class="message" role="status">Ready to scan your network.</div>
+        </section>
+
+        <section class="stats-grid">
+            <article class="stat-card">
+                <div class="stat-top"><span>NETWORK STATUS</span><span class="stat-icon green">◈</span></div>
+                <div id="networkStatus" class="stat-value green-text">UNKNOWN</div>
+                <div class="stat-caption">Latest scan assessment</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-top"><span>SECURITY FINDINGS</span><span class="stat-icon red">⚑</span></div>
+                <div id="findingCount" class="stat-value">—</div>
+                <div class="stat-caption">Critical and warning findings</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-top"><span>OBSERVATIONS</span><span class="stat-icon blue">⌁</span></div>
+                <div id="observationCount" class="stat-value">—</div>
+                <div class="stat-caption">Collected probe responses</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-top"><span>DEVICES OBSERVED</span><span class="stat-icon purple">▦</span></div>
+                <div id="deviceCount" class="stat-value">—</div>
+                <div class="stat-caption">Unique IP addresses</div>
+            </article>
+        </section>
+
+        <section class="content-grid">
+            <article class="panel gateway-panel">
+                <div class="section-heading">
+                    <div><h2>Target Information</h2><p>Current scan destination</p></div>
+                    <span class="panel-icon">⌖</span>
+                </div>
+                <div class="gateway-address" id="gatewayIP">Not scanned</div>
+                <div class="detail-row"><span>Gateway / Target IP</span><strong id="targetIP">—</strong></div>
+                <div class="detail-row"><span>Target MAC Address</span><strong id="targetMAC">—</strong></div>
+                <div class="detail-row"><span>Last Scan</span><strong id="lastScan">—</strong></div>
+            </article>
+
+            <article class="panel methods-panel">
+                <div class="section-heading">
+                    <div><h2>Detection Methods</h2><p>Probe collection status</p></div>
+                    <span class="panel-icon">⌁</span>
+                </div>
+                <div id="methodStatus">
+                    <div class="method-row"><span>ARP Cache</span><span class="method-state">Not run</span></div>
+                    <div class="method-row"><span>Active ARP Probe</span><span class="method-state">Not run</span></div>
+                    <div class="method-row"><span>TCP SYN Probe</span><span class="method-state">Not run</span></div>
+                </div>
+            </article>
+       
+        </section>
+
+        
+<section class="panel" id="topology">
+    <div class="section-heading">
+        <div>
+            <h2>Network Topology</h2>
+            <p>Visual representation of discovered network devices.</p>
+        </div>
+        <span class="count-label" id="topologyCount">0 devices | 0 suspicious</span>
+    </div>
+
+    <div id="topologyCanvas" class="topology-canvas">
+        <div class="empty-state">Start a scan to discover network devices.</div>
+    </div>
+
+    <div id="topologyDetails" class="empty-state">
+        Select a device to view its details.
+    </div>
+</section>
+
+<section class="panel" id="macChanges">
+            <div class="section-heading">
+                <div>
+                    <h2>Historical MAC Changes</h2>
+                    <p>Previously observed MAC addresses compared with newer observations.</p>
+                </div>
+                <span class="count-label" id="macChangesCount">0 changes</span>
+            </div>
+
+            <div id="macChangesList" class="findings-list">
+                <div class="empty-state">Loading historical MAC changes...</div>
+            </div>
+        </section>
+
+        <section class="panel" id="findings">
+            <div class="section-heading">
+                <div><h2>Network Observations</h2><p>IP and MAC addresses collected during the latest scan.</p></div>
+                <span class="count-label" id="tableCount">0 records</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>IP ADDRESS</th><th>MAC ADDRESS</th><th>PROBE SOURCE</th><th>PORT</th></tr></thead>
+                    <tbody id="observationsBody">
+                        <tr><td colspan="4" class="empty-state">Start a scan to view network observations.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel" id="findings">
+            <div class="section-heading">
+                <div><h2>Security Findings</h2><p>Detection results and probe warnings.</p></div>
+                <span class="count-label" id="findingsCount">0 findings</span>
+            </div>
+            <div id="findingsList" class="findings-list">
+                <div class="empty-state">No scan results available yet.</div>
+            </div>
+        </section>
+
+<section class="panel" id="scan-history">
+    <div class="section-heading">
+        <div>
+            <h2>Scan History</h2>
+            <p>Previously completed network scans.</p>
+        </div>
+        <button id="refreshHistory" type="button">
+            Refresh History
+        </button>
+    </div>
+
+    <div id="scanHistory" class="history-list">
+        <p class="empty-state">Loading scan history...</p>
+    </div>
+</section>
+
+        <footer>ARP SENTINEL · NETWORK SECURITY MONITOR · FOR AUTHORIZED NETWORKS</footer>
+    </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
+
