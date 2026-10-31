@@ -81,62 +81,47 @@ class Detector:
 
 def analyze_observations(target: str, observations: Iterable[ProbeObservation]) -> list[Finding]:
     by_ip: dict[str, set[str]] = defaultdict(set)
-    by_ip_source: dict[tuple[str, str], set[str]] = defaultdict(set)
+    by_source: dict[str, set[str]] = defaultdict(set)
+    ordered_observations = list(observations)
 
-    for observation in observations:
-        ip = observation.ip
-        mac = observation.mac.lower()
-        by_ip[ip].add(mac)
-        by_ip_source[(ip, observation.source)].add(mac)
+    for observation in ordered_observations:
+        by_ip[observation.ip].add(observation.mac.lower())
+        by_source[observation.source].add(observation.mac.lower())
 
     findings: list[Finding] = []
 
     target_macs = sorted(by_ip.get(target, set()))
-
     if len(target_macs) > 1:
         findings.append(
             Finding(
                 severity="critical",
                 title="Multiple MAC addresses seen for target",
-                details=(
-                    f"The target {target} was observed with multiple MAC "
-                    f"addresses: {', '.join(target_macs)}."
-                ),
+                details=f"The target {target} replied with more than one MAC address: {', '.join(target_macs)}.",
                 ip=target,
                 macs=tuple(target_macs),
             )
         )
     elif len(target_macs) == 1:
-        target_source_sets = {
-            frozenset(macs)
-            for (ip, _source), macs in by_ip_source.items()
-            if ip == target and macs
-        }
-
-        if len(target_source_sets) > 1:
+        mac = target_macs[0]
+        source_mac_sets = {frozenset(macs) for macs in by_source.values() if macs}
+        if len(source_mac_sets) > 1:
             findings.append(
                 Finding(
                     severity="warning",
                     title="Target MAC differs across probe methods",
-                    details=(
-                        f"Different probe methods observed different MAC "
-                        f"address sets for target {target}."
-                    ),
+                    details=f"The target {target} consistently replied as {mac}, but different probe methods observed different MAC sets.",
                     ip=target,
-                    macs=tuple(target_macs),
+                    macs=(mac,),
                 )
             )
 
     for ip, macs in sorted(by_ip.items()):
-        if len(macs) > 1 and ip != target:
+        if len(macs) > 1:
             findings.append(
                 Finding(
                     severity="warning",
                     title="Conflicting MAC addresses detected",
-                    details=(
-                        f"IP {ip} was observed with multiple MAC addresses: "
-                        f"{', '.join(sorted(macs))}."
-                    ),
+                    details=f"IP {ip} replied with multiple MAC addresses: {', '.join(sorted(macs))}.",
                     ip=ip,
                     macs=tuple(sorted(macs)),
                 )
@@ -147,19 +132,16 @@ def analyze_observations(target: str, observations: Iterable[ProbeObservation]) 
             Finding(
                 severity="info",
                 title="No obvious spoofing indicators",
-                details=(
-                    f"Observed replies for {target} were internally consistent. "
-                    "This scan alone cannot rule out ARP spoofing."
-                ),
+                details=f"Observed replies for {target} were internally consistent.",
                 ip=target,
             )
         )
 
     return findings
+
+
 def _has_raw_socket_permissions() -> bool:
     geteuid = getattr(os, "geteuid", None)
     if geteuid is None:
-        # Windows does not provide os.geteuid().
-        # Let the probe attempt run and handle any resulting error.
         return True
     return geteuid() == 0
